@@ -84,6 +84,8 @@ def extractMeta(text):
 
                 if value:
                     meta[key] = value.group(1)
+                else:
+                    meta[key] = "--"
     return meta
 
 
