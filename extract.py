@@ -230,7 +230,7 @@ def segment_pdf(file_path):
 
 # Get a list of all PDF files in the 'data' directory and its subdirectories
 pdf_files = []
-for dirpath, dirnames, filenames in os.walk("data"):
+for dirpath, dirnames, filenames in os.walk("data_test"):
     for filename in filenames:
         if filename.endswith(".pdf"):
             pdf_files.append(os.path.join(dirpath, filename))
