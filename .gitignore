@@ -1,1 +1,5 @@
 output.csv
+env
+venv
+data_test
+extract.log
