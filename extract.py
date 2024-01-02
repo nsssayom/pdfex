@@ -6,15 +6,27 @@ import numpy as np
 import pytesseract
 from pdf2image.pdf2image import convert_from_path
 from tqdm import tqdm
+import json
+import platform
 
-# Set the TESSDATA_PREFIX environment variable
-os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/4.00/tessdata/"
+# Create a log file if it doesn't exist
+if not os.path.exists("extract.log"):
+    with open("extract.log", "w") as f:
+        json.dump({}, f)
 
-# Remove all the contents of output.txt
-open("output.csv", "w").close()
+# Read the log file and store the processed files and pages in a dictionary
+with open("extract.log", "r") as f:
+    processed_files = json.load(f)
+
+# Check the operating system
+if platform.system() == "Linux":
+    # Check if it's an Arch-based system
+    if os.path.exists("/etc/arch-release"):
+        os.environ["TESSDATA_PREFIX"] = "/usr/share/tessdata/"
+    else:
+        os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/4.00/tessdata/"
 
 def write_to_csv(data, meta, filename):
-    
     # Combine data and meta keys
     keys = list(data.keys()) + list(meta.keys())
 
@@ -55,7 +67,7 @@ def extractMeta(text):
         "উপজেলা/থানা",
         "পোষ্টকোড",
     ]
-    
+
     meta = {}
 
     # Split the text into lines
@@ -73,6 +85,7 @@ def extractMeta(text):
                 if value:
                     meta[key] = value.group(1)
     return meta
+
 
 def extractData(text):
     # Define the keys
@@ -112,6 +125,7 @@ def extractData(text):
 
     return data
 
+
 def segment_pdf(file_path):
     # Convert the PDF to images
     images = convert_from_path(file_path)
@@ -120,12 +134,17 @@ def segment_pdf(file_path):
     with tqdm(total=len(images), desc=f"Processing pages of {file_path}") as pbar:
         for i, image in enumerate(images):
             pbar.set_description(f"Processing page {i+1}/{len(images)} of {file_path}")
+
+            # Skip the file or page if it's already processed
+            if file_path in processed_files and i in processed_files[file_path]:
+                continue
+
             if i < 2:  # Skip the first two pages
                 continue
 
             # Convert the image to grayscale
             gray = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2GRAY)
-            
+
             # Convert the grayscale image back to a color image for visualization
             color = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
@@ -194,14 +213,22 @@ def segment_pdf(file_path):
             # cv2.imshow(f'Image {i+1}', resized)
             # cv2.waitKey(0)
             # cv2.destroyAllWindows()
+            # After processing a file or page, add it to the dictionary and log file
+            if file_path not in processed_files:
+                processed_files[file_path] = []
+            processed_files[file_path].append(i)
+            with open("extract.log", "w") as f:
+                json.dump(processed_files, f)
+
             pbar.update()
+
 
 # file_path = "sample.pdf"
 # segment_pdf(file_path)
 
 # Get a list of all PDF files in the 'data' directory and its subdirectories
 pdf_files = []
-for dirpath, dirnames, filenames in os.walk("data"):
+for dirpath, dirnames, filenames in os.walk("data_test"):
     for filename in filenames:
         if filename.endswith(".pdf"):
             pdf_files.append(os.path.join(dirpath, filename))
@@ -209,5 +236,11 @@ for dirpath, dirnames, filenames in os.walk("data"):
 # Process each PDF file
 with tqdm(total=len(pdf_files), desc="Processing files") as pbar_files:
     for file_path in pdf_files:
+        # Skip the file if it's fully processed
+        if file_path in processed_files and len(processed_files[file_path]) == len(
+            convert_from_path(file_path)
+        ):
+            continue
+
         segment_pdf(file_path)
         pbar_files.update()
